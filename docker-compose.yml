@@ -1,0 +1,235 @@
+version: '3.8'
+
+services:
+  # API Gateway (Spring Cloud Gateway)
+  apptraqer-gateway:
+    image: spring-cloud-gateway:latest
+    container_name: apptraqer-gateway
+    ports:
+      - "8080:8080"
+    networks:
+      - at_dmz_network
+    depends_on:
+      - apptraqer-auth-service
+      - apptraqer-job-service
+      - apptraqer-user-service
+      - apptraqer-company-service
+      - apptraqer-personnel-service
+      - apptraqer-agency-service
+      - apptraqer-search-service
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+    volumes:
+      - ./logs/apptraqer-gateway:/app/logs   # Bind mount for logs
+
+  # Authentication Service (Spring Security)
+  apptraqer-auth-service:
+    image: authentication-service:latest
+    container_name: apptraqer-auth-service
+    networks:
+      - at_dmz_network
+      - at_internal_network
+    secrets:
+      - db_user
+      - db_password
+      - jwt_secret_key
+    environment:
+      SECRET_KEY_PATH: "/run/secrets/jwt_secret_key"
+      - SPRING_PROFILES_ACTIVE=dev
+      - SPRING_DATASOURCE_URL=jdbc:mysql://apptraqer-mysql:3306/apptraqerdata
+      - SPRING_DATASOURCE_USERNAME=/run/secrets/db_user
+      - SPRING_DATASOURCE_PASSWORD=/run/secrets/db_password
+    volumes:
+      - auth-data:/data/authentication       # Managed volume for app data
+      - ./configs/auth:/app/config           # Bind mount for configuration
+      - ./logs/auth:/app/logs                # Bind mount for logs
+
+ # Job Service
+ apptraqer-job-service:
+   image: job-service:latest
+   container_name: apptraqer-job-service
+   networks:
+     - at_dmz_network
+     - at_internal_network
+   environment:
+     - SPRING_PROFILES_ACTIVE=dev
+   volumes:
+     - job-data:/data/jobs                  # Managed volume for app data
+     - ./logs/job:/app/logs                 # Bind mount for logs
+
+ # User Service
+ apptraqer-user-service:
+   image: user-service:latest
+   container_name: apptraqer-user-service
+   networks:
+     - at_dmz_network
+     - at_internal_network
+   environment:
+     - SPRING_PROFILES_ACTIVE=dev
+   volumes:
+     - user-data:/data/users                # Managed volume for app data
+     - ./logs/user:/app/logs                # Bind mount for logs
+
+ # Company Service
+ apptraqer-company-service:
+   image: company-service:latest
+   container_name: apptraqer-company-service
+   networks:
+     - at_dmz_network
+     - at_internal_network
+   environment:
+     - SPRING_PROFILES_ACTIVE=dev
+   volumes:
+     - company-data:/data/companies         # Managed volume for app data
+     - ./logs/company:/app/logs             # Bind mount for logs
+
+ # Personnel Service
+ apptraqer-personnel-service:
+   image: personnel-service:latest
+   container_name: apptraqer-personnel-service
+   networks:
+     - at_dmz_network
+     - at_internal_network
+   environment:
+     - SPRING_PROFILES_ACTIVE=dev
+   volumes:
+     - personnel-data:/data/personnel       # Managed volume for app data
+     - ./logs/personnel:/app/logs           # Bind mount for logs
+
+ # Recruiting Agency Service
+ apptraqer-agency-service:
+   image: recruiting-agency-service:latest
+   container_name: apptraqer-agency-service
+   networks:
+     - at_dmz_network
+     - at_internal_network
+   environment:
+     - SPRING_PROFILES_ACTIVE=dev
+   volumes:
+     - agency-data:/data/agencies           # Managed volume for app data
+     - ./logs/recruiting:/app/logs          # Bind mount for logs
+
+ # Search Service
+ apptraqer-search-service:
+   image: search-service:latest
+   container_name: apptraqer-search-service
+   networks:
+     - at_dmz_network
+     - at_internal_network     
+   environment:
+     - SPRING_PROFILES_ACTIVE=dev
+   volumes:
+     - ./logs/search:/app/logs              # Bind mount for logs
+
+  # Kafka (messaging broker)
+  apptraqer-kafka:
+    image: wurstmeister/kafka:latest
+    container_name: kafka
+    networks:
+      - at_internal_network
+    environment:
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9093
+      - KAFKA_LISTENER_SECURITY_PROTOCOL=PLAINTEXT
+      - KAFKA_LISTENER_INTERNAL=PLAINTEXT://kafka:9093
+      - KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9093,PLAINTEXT://localhost:9092
+      - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
+    volumes:
+      - kafka-data:/var/lib/kafka             # Managed volume for Kafka data
+      - ./logs/kafka:/var/log/kafka           # Bind mount for logs
+
+  # Zookeeper for Kafka
+  apptraqer-zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    container_name: zookeeper
+    networks:
+      - at_internal_network
+    environment:
+      - ZOOKEEPER_CLIENT_PORT=2181
+      - ZOOKEEPER_TICK_TIME=2000
+
+  # Elasticsearch
+  apptraqer-elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.10.0
+    container_name: elasticsearch
+    networks:
+      - at_internal_network
+    environment:
+      - discovery.type=single-node
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data # Managed volume for Elasticsearch data
+      - ./logs/elasticsearch:/var/log/elasticsearch      # Bind mount for logs
+
+  # Logstash (Optional for centralized logging)
+  apptraqer-logstash:
+    image: docker.elastic.co/logstash/logstash:7.10.0
+    container_name: logstash
+    networks:
+      - at_internal_network
+    environment:
+      - LOGSTASH_JAVA_OPTS="-Xmx256m -Xms256m"
+    volumes:
+      - logstash-config:/usr/share/logstash/config        # Managed volume for config
+      - logstash-data:/usr/share/logstash/data            # Managed volume for data
+      - ./logs/logstash:/var/log/logstash                 # Bind mount for logs
+
+  # Kibana for visualizing logs and health
+  apptraqer-kibana:
+    image: docker.elastic.co/kibana/kibana:7.10.0
+    container_name: kibana
+    networks:
+      - at_internal_network
+    ports:
+      - "5601:5601"
+    environment:
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+
+  # MySQL Service
+  apptraqer-mysql:
+    image: mysql:5.7
+    container_name: apptraqer-mysql
+    networks:
+      - at_internal_network
+    secrets:
+      - db_root
+      - db_user
+      - db_password
+    environment:
+      MYSQL_ROOT_PASSWORD_FILE: /run/secrets/db_root
+      MYSQL_USER_FILE: /run/secrets/db_user
+      MYSQL_PASSWORD_FILE: /run/secrets/db_password
+    volumes:
+      - mysql-data:/var/lib/mysql          # Managed volume for MySQL data
+    ports:
+      - "3306:3306"
+
+secrets:
+  db_root:
+    external: true
+  db_user:
+    external: true
+  db_password:
+    external: true
+  jwt_secret_key:
+    external: true
+
+networks:
+  at_dmz_network:
+    driver: bridge
+  at_internal_network:
+    driver: bridge
+volumes:
+  auth-data:
+  job-data:
+  user-data:
+  company-data:
+  personnel-data:
+  agency-data:
+  kafka-data:
+  elasticsearch-data:
+  logstash-config:
+  logstash-data:
+  mysql-data:
