@@ -18,9 +18,9 @@ services:
       - apptraqer-agency-service
       - apptraqer-search-service
     environment:
-      - SPRING_PROFILES_ACTIVE=dev
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILE:-dev}  # Default to 'dev' if not set
     volumes:
-      - ./logs/apptraqer-gateway:/app/logs   # Bind mount for logs
+      - ./logs/apptraqer-gateway:/app/logs
 
   # Authentication Service (Spring Security)
   apptraqer-auth-service:
@@ -35,7 +35,7 @@ services:
       - jwt_secret_key
     environment:
       SECRET_KEY_PATH: "/run/secrets/jwt_secret_key"
-      - SPRING_PROFILES_ACTIVE=dev
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILE:-dev}  # Restored dynamic profile setting
       - SPRING_DATASOURCE_URL=jdbc:mysql://apptraqer-mysql:3306/apptraqerdata
       - SPRING_DATASOURCE_USERNAME=/run/secrets/db_user
       - SPRING_DATASOURCE_PASSWORD=/run/secrets/db_password

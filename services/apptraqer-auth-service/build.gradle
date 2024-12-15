@@ -51,7 +51,6 @@ dependencies {
 	testImplementation 'com.h2database:h2'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
-	implementation 'javax.persistence:javax.persistence-api:2.2'
 	implementation 'javax.xml.bind:jaxb-api:2.3.1'
 }
 
